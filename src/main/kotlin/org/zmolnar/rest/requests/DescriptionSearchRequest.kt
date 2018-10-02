@@ -35,6 +35,7 @@ class DescriptionSearchRequest constructor(_typeId: String, _term: String){
         sourceBuilder.timeout(TimeValue(duration, timeUnit))
         if (!term.isEmpty()) {
             val queryBuilder = MatchQueryBuilder(TERM, term)
+            // TODO: Use boolQueryBuilder
             queryBuilder.fuzziness(Fuzziness.AUTO)
             queryBuilder.prefixLength(5)
             queryBuilder.maxExpansions(10)
