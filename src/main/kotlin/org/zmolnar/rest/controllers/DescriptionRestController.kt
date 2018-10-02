@@ -15,10 +15,11 @@ class DescriptionRestController {
 
     @GetMapping("/descriptions")
     fun getDescriptions(
-            @RequestParam(value = "typeId", defaultValue = "typeId") typeId: String,
-            @RequestParam(value = "term", defaultValue = "term") term: String) : List<DescriptionIndexDocument> {
+            @RequestParam(value = "typeId", defaultValue = "") typeId: String,
+            @RequestParam(value = "term", defaultValue = "") term: String) : List<DescriptionIndexDocument> {
 
         return DescriptionSearchRequestBuilder()
+                .filterByType(typeId)
                 .filterByTerm(term)
                 .build()
                 .execute(60, TimeUnit.SECONDS)
