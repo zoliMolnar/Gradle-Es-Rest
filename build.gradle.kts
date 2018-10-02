@@ -33,8 +33,15 @@ repositories {
 
 dependencies {
     compile("org.jetbrains.kotlin:kotlin-stdlib:1.2.71")
-    compile("org.springframework.boot:spring-boot-starter-web")
+    compile("org.jetbrains.kotlin:kotlin-reflect:1.2.71")
     testCompile("org.springframework.boot:spring-boot-starter-test")
+    compile("org.springframework.boot:spring-boot-starter-web") {
+        exclude("spring-boot-starter-tomcat")
+    }
+
+    compile("org.springframework.boot:spring-boot-starter-jetty")
+    compile("org.springframework.boot:spring-boot-starter-actuator")
+
 }
 
 group = "org.zmolnar.rest"
