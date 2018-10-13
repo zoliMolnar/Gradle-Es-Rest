@@ -8,23 +8,25 @@ import org.elasticsearch.client.RestClient
 import org.elasticsearch.client.RestHighLevelClient
 import org.elasticsearch.common.unit.Fuzziness
 import org.elasticsearch.common.unit.TimeValue
-import org.elasticsearch.index.query.BoolQueryBuilder
-import org.elasticsearch.index.query.MatchQueryBuilder
-import org.elasticsearch.index.query.QueryBuilders
+import org.elasticsearch.index.query.*
 import org.elasticsearch.search.builder.SearchSourceBuilder
 import org.elasticsearch.search.sort.ScoreSortBuilder
 import org.elasticsearch.search.sort.SortOrder
+import org.springframework.beans.factory.annotation.Autowired
 import org.zmolnar.rest.common.DESCRIPTION_INDEX_NAME
 import org.zmolnar.rest.common.STORE_NAME
 import org.zmolnar.rest.model.DescriptionIndexDocument
-import org.zmolnar.rest.model.TERM
-import org.zmolnar.rest.model.TYPE_ID
 import java.util.concurrent.TimeUnit
+
+private const val MAX_SIZE = 10_000
 
 class DescriptionSearchRequest constructor(_typeId: String, _term: String){
 
     private val typeId = _typeId
     private val term = _term
+
+    @Autowired
+    private lateinit var client: RestHighLevelClient
 
     fun execute(duration: Long, timeUnit: TimeUnit): List<DescriptionIndexDocument> {
         val client = RestHighLevelClient(RestClient.builder(
@@ -38,13 +40,14 @@ class DescriptionSearchRequest constructor(_typeId: String, _term: String){
         }
 
         if (!typeId.isEmpty()) {
-            boolQueryBuilder.must(QueryBuilders.matchQuery(TYPE_ID, typeId))
+            boolQueryBuilder.filter(QueryBuilders.termQuery(DescriptionIndexDocument.TYPE_ID, typeId))
         }
 
         val sourceBuilder = SearchSourceBuilder()
         sourceBuilder.sort(ScoreSortBuilder().order(SortOrder.DESC))
         sourceBuilder.timeout(TimeValue(duration, timeUnit))
-        sourceBuilder.query(boolQueryBuilder)
+        sourceBuilder.size(MAX_SIZE)
+        sourceBuilder.query(createDisMaxQuery(boolQueryBuilder))
 
         val searchRequest = SearchRequest(STORE_NAME)
         searchRequest.types(DESCRIPTION_INDEX_NAME)
@@ -54,34 +57,59 @@ class DescriptionSearchRequest constructor(_typeId: String, _term: String){
     }
 
     private fun addTermFilterQuery(boolQueryBuilder: BoolQueryBuilder) {
-        boolQueryBuilder.should(addFuzzyPrefixQuery())
-        boolQueryBuilder.should(QueryBuilders.termQuery(TERM, term))
+        boolQueryBuilder.should(addPrefixQuery())
+        boolQueryBuilder.should(addCommonTermsQuery())
+        boolQueryBuilder.should(addExactTermQuery())
+        boolQueryBuilder.should(addPhraseQuery())
     }
 
-    private fun addFuzzyPrefixQuery() : MatchQueryBuilder {
-        val matchQuery = QueryBuilders.matchQuery(TERM, term)
-        matchQuery.boost(0.1F)
-        matchQuery.fuzziness(Fuzziness.AUTO)
-        matchQuery.prefixLength(5)
-        matchQuery.maxExpansions(10)
+    private fun addPrefixQuery() : PrefixQueryBuilder {
+        val prefixQuery = QueryBuilders.prefixQuery(DescriptionIndexDocument.TERM, term)
+        prefixQuery.boost(20F)
 
-        return matchQuery
+        return prefixQuery
+    }
+
+    private fun addCommonTermsQuery(): QueryBuilder? {
+        val termsQuery = QueryBuilders.commonTermsQuery(DescriptionIndexDocument.TERM, term)
+        termsQuery.analyzer("simple")
+        termsQuery.cutoffFrequency(0.001F)
+        termsQuery.highFreqMinimumShouldMatch("1")
+        termsQuery.lowFreqMinimumShouldMatch("1")
+        termsQuery.boost(50F)
+        return termsQuery
+    }
+
+    private fun addExactTermQuery() : TermQueryBuilder {
+        val exactTermQuery = QueryBuilders.termQuery(DescriptionIndexDocument.TERM, term)
+        exactTermQuery.boost(100F)
+        return exactTermQuery
+    }
+
+    private fun addPhraseQuery(): MatchPhraseQueryBuilder? {
+        return QueryBuilders.matchPhraseQuery(DescriptionIndexDocument.TERM, term).analyzer("simple").boost(20F)
+    }
+
+    private fun createDisMaxQuery(boolQueryBuilder: BoolQueryBuilder): DisMaxQueryBuilder? {
+        val disMaxQuery = QueryBuilders.disMaxQuery()
+        disMaxQuery.boost(1.2F)
+        disMaxQuery.tieBreaker(0.9F)
+        disMaxQuery.add(boolQueryBuilder)
+
+        return disMaxQuery
     }
 
     private fun executeSearch(searchRequest: SearchRequest, client: RestHighLevelClient) : List<DescriptionIndexDocument> {
         val response = client.search(searchRequest, RequestOptions.DEFAULT)
         val gson = Gson()
-
-        val documents = response.hits.hits.asIterable().map {
+        client.close()
+        return response.hits.hits.asIterable().map {
             val jsonResponse = it.sourceAsString
             val document = gson.fromJson(jsonResponse, DescriptionIndexDocument::class.java)
             document.score = it.score
             document
         }.toCollection(ArrayList())
 
-        client.close()
-
-        return documents
     }
 
 }

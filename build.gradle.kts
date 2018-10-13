@@ -18,6 +18,7 @@ buildscript {
         classpath("org.elasticsearch.client:elasticsearch-rest-client:6.4.1")
         classpath("org.elasticsearch.client:elasticsearch-rest-high-level-client:$es_version")
         classpath("com.google.code.gson:gson:2.8.5")
+
     }
 }
 

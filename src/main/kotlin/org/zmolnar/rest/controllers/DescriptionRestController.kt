@@ -11,8 +11,6 @@ import java.util.concurrent.atomic.AtomicLong
 @RestController
 class DescriptionRestController {
 
-    val counter = AtomicLong()
-
     @GetMapping("/descriptions")
     fun getDescriptions(
             @RequestParam(value = "typeId", defaultValue = "") typeId: String,

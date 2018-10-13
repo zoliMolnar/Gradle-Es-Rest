@@ -1,10 +1,5 @@
 package org.zmolnar.rest.model
 
-
-
-const val TERM = "term"
-const val TYPE_ID = "typeId"
-
 /**
  * Simple data class to represent a SNOMEDCT description
  */
@@ -20,5 +15,10 @@ data class DescriptionIndexDocument(
         val caseSignificanceId: String
 ) {
     var score: Float = (-1).toFloat()
+
+    companion object {
+        const val TERM = "term"
+        const val TYPE_ID = "typeId"
+    }
 
 }
